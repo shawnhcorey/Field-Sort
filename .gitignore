@@ -1,0 +1,21 @@
+#
+#     Title: Field SortP Git Ignore
+# Copyright: Copyright 2023 by Shawn H Corey. Some rights reserved.
+#   Licence: GPLv3, see https://www.gnu.org/licenses/gpl-3.0.html
+#   Purpose: Files & directories not to include in git.
+#
+
+# tarballs
+*.tgz
+*.gz
+
+# backup files
+*.bak
+
+# temporary files
+*.swp
+*.tmp
+_*
+*~
+
+# files & directories
