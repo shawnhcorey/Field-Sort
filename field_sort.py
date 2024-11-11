@@ -35,6 +35,7 @@
 '''
 
 
+# --------------------------------------
 # Imports
 import sys
 import re
@@ -46,70 +47,136 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 
 import gettext
-_T = gettext.gettext
+_ = gettext.gettext
+
+import locale
 
 
+# --------------------------------------
 # constants
-EXIT_STATUS_SORT_CANCELLED =  2
+SUCCESS                    =  0
+EXIT_STATUS_SORT_CANCELLED =  1
 EXIT_STATUS_INTERNAL_ERROR = -1
+
+SCROLL_BAR_SIZE   = 17  # needed to adapt to window size
+ADDITIONAL_HEIGHT = 36  # needed to adapt to window size
 
 EMPTY_STRING = ''
 
 NUMBER_OF_COLUMNS  = 5
 CONTROLS_START_ROW = 2
 
+ENABLE_COLUMN     = 0
+SORT_ON_COLUMN    = 1
+SORT_AS_COLUMN    = 2
+SORT_ORDER_COLUMN = 3
+LANGUAGE_COLUMN   = 4
+
 NARROW_MARGIN = 0
 SIDE_MARGIN   = 5
 WIDE_MARGIN   = 5
 
-# consolidated strings
-STRING_NONE = _T("None")
+# --------------------------------------
+# translatable strings
+STRING_TITLE = _('Field Sort - Zim Desktop Wiki')
+
+STRING_MSG  = _('No field selected')
+STRING_MSG2 = _('No field has been select. This will cancel the sort. Do you wish to cancel?')
+
+STRING_NONE  = _('None')
+STRING_SORT_ON     = _('Sort on:')
+STRING_THEN_ON     = _('Then on:')
+STRING_ENTIRE_LINE = _('entire line')
+STRING_SORT_AS     = _('Sort as:')
+STRING_ORDER       = _('Order:')
+STRING_LANGUAGE    = _('Language:')
+
+STRING_SORT_BY_FIELDS   = _('Sort by fields')
+STRING_NO_FIELDS_FOUND  = _('No fields found')
+STRING_NUMBER_OF_FIELDS = _('Number of fields: ')
+STRING_SORT_BY_LINES    = _('Sort by lines')
 
 # consolidated strings for 'Sort as:'
-STRING_TEXT    = _T("Text")
-STRING_NUMBERS = _T("Numbers")
+STRING_TEXT      = _('Text')
+STRING_NUMBER    = _('Number')
+STRING_DATE      = _('Date')
+STRING_TIME      = _('Time')
+STRING_CURRENCY  = _('Currency')
+STRING_VERSION   = _('Version')  # period is separator, not decimal point
 
 # consolidated strings for 'Order:'
-STRING_ASCENDING  = _T("Ascending")
-STRING_DESCENDING = _T("Descending")
+STRING_ASCENDING  = _('Ascending')
+STRING_DESCENDING = _('Descending')
 
-SORT_AS_LIST = (
-    STRING_TEXT,
-    STRING_NUMBERS,
-)
-SORT_ORDER_LIST = (
-    STRING_ASCENDING,
-    STRING_DESCENDING,
-)
+# --------------------------------------
+# Theses strings are NOT to be translated
+ID_TEXT   = 'text'
+ID_NUMBER = 'number'
 
-# global variables
+ID_ASCENDING  = 'ascending'
+ID_DESCENDING = 'descending'
+
+ID_NONE = 'none'
+
+ID_ENTIRE_LINE = -1
+
+Sort_as_list = {
+    ID_TEXT: STRING_TEXT,
+    ID_NUMBER: STRING_NUMBER,
+}
+
+Sort_order_list = {
+    ID_ASCENDING:  STRING_ASCENDING,
+    ID_DESCENDING: STRING_DESCENDING,
+}
+
+# --------------------------------------
+# Globals
 
 # this list is expanded dynamically
-LocaleList = (
-    STRING_NONE,
-)
+Language_list = {
+    ID_NONE: STRING_NONE,
+}
 
-# code
+# These 3 variables are used to determine the locale for strcoll()
+AppLocale   = None
+AppEncoding = None
+AppLanguage = None
 
 
-def number_or_zero(string):
+# --------------------------------------
+# Subroutines
+
+# --------------------------------------
+def load_languages():
     '''
-          Name: number_or_zero
-         Usage: number = number_or_zero(string)
-       Purpose: Converts a string to a number if possible, or returns zero
-    Parameters: string  -- text
-       Returns: number -- True if a number
+          Name: load_languages
+         Usage: load_languages()
+       Purpose: Load the locals from ICU or system.
+    Parameters: (none)
+       Returns: (none)
     '''
-    try:
-        return float(string)
-    except ValueError:
-        return 0
+    global AppLocale, AppLanguage
+
+    # Load the app's locale data from its environment.
+    # Note the 2nd call will not do anything if the 1st did.
+    # That is, the 2nd call does nothing if the 1st worked.
+    locale.setlocale(locale.LC_ALL, '')    # use user's default settings
+    locale.setlocale(locale.LC_ALL, None)  # use current setting
+    AppLocale, AppEncoding = locale.getlocale()
+
+    if AppLocale:
+        AppLanguage = AppLocale
+        Language_list[AppLocale] = AppLanguage
+
+    return
 
 
-def get_text():
+# --------------------------------------
+def read_text():
     '''
-          Name: get_text
-         Usage: text, marked = get_text()
+          Name: read_text
+         Usage: text, marked = read_text()
        Purpose: Get the text from the command-line.
     Parameters: (none)
        Returns: text   -- from command-line argument
@@ -122,6 +189,7 @@ def get_text():
     return text, marked
 
 
+# --------------------------------------
 def get_newline(marked):
     '''
           Name: get_newline
@@ -152,13 +220,13 @@ def get_newline(marked):
     found = re.search('^((?:\r?\n)+)', marked)
     if found:
         frontage = found.group(1)
-    marked = re.sub('^(?:\r?\n)+', EMPTY_STRING, marked)   # remove leading newline, if any
+    marked = re.sub('^(?:\r?\n)+', EMPTY_STRING, marked)   # remove leading blank lines, if any
 
     ending = EMPTY_STRING
     found = re.search('((?:\r?\n)+)$', marked)
     if found:
         ending = found.group(1)
-    marked = re.sub('(?:\r?\n)+$', EMPTY_STRING, marked)   # remove trailing newline, if any
+    marked = re.sub('(?:\r?\n)+$', EMPTY_STRING, marked)   # remove trailing blank lines, if any
 
     newline = EMPTY_STRING
     found = re.search('((?:\r?\n)+)', marked)
@@ -168,6 +236,7 @@ def get_newline(marked):
     return frontage, newline, ending
 
 
+# --------------------------------------
 def get_lines(text):
     '''
           Name: get_lines
@@ -184,6 +253,7 @@ def get_lines(text):
     return lines
 
 
+# --------------------------------------
 def get_fields(text, marked):
     '''
           Name: get_fields
@@ -203,23 +273,27 @@ def get_fields(text, marked):
     #     (marked_line, unmarked_line, field_1, field_2, ..., ),
     #     ...,
     # )
+
     zipped = zip(get_lines(marked), get_lines(text))
     count = 0
     fields = ()
     for item in zipped:
-        per_line = (item[0], item[1])
+        per_line = (item[0],)
         found = re.findall('__[^_]*(?:(?:_[^_]+))*__', item[0])
         cnt = 0
         for each in found:
-            each = re.search('__(.*)__', each).group(1)
-            per_line = per_line + (each, )
-            cnt = cnt + 1
-        fields = fields + (per_line, )
+            each = re.search(r'__(.*)__', each).group(1)
+            per_line += (each, )
+            cnt += 1
+        per_line += (item[1], )
+        fields += (per_line,)
         if count < cnt:
             count = cnt
+
     return count, fields
 
 
+# --------------------------------------
 def set_margins(widget, left, top=None, right=None, bottom=None):
     '''
           Name: set_margins
@@ -232,11 +306,11 @@ def set_margins(widget, left, top=None, right=None, bottom=None):
                 bottom -- bottom margin, default top
        Returns: (none)
     '''
-    if top == None:
+    if top is None:
         top = left
-    if right == None:
+    if right is None:
         right = left
-    if bottom == None:
+    if bottom is None:
         bottom = top
     widget.set_margin_start(left)
     widget.set_margin_top(top)
@@ -244,6 +318,7 @@ def set_margins(widget, left, top=None, right=None, bottom=None):
     widget.set_margin_bottom(bottom)
 
 
+# --------------------------------------
 def sort_controls(grid, row, field, count):
     '''
           Name: sort_controls
@@ -255,96 +330,93 @@ def sort_controls(grid, row, field, count):
                                    added to the grid
                 field_number    -- used as default for SpinButton
                 count_of_fields -- maximum for SpinButton
-       Returns: controls        -- for future manipulations
+       Returns: controls        -- controls created
     '''
     controls = ()
 
     # en-/disable control
-    if row > CONTROLS_START_ROW and count > 0:
+    if field>0 or count>0:
         ctl = Gtk.CheckButton()
-        ctl.set_active(field>1)
+        ctl.set_active(field>0)
         set_margins(ctl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-        grid.attach(ctl, 0, row, 1, 2)
+        grid.attach(ctl, ENABLE_COLUMN, row, 1, 2)
         controls += (ctl,)
     else:
-        lbl = Gtk.Label(label=' ')
-        set_margins(lbl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-        grid.attach(lbl, 0, row, 1, 2)
-        if count == 0:
-            controls += (0,)
+        controls += (None,)
 
     # field order
     if row == CONTROLS_START_ROW or count == 0:
-        lbl = Gtk.Label(label=_T("Sort on:"))
+        lbl = Gtk.Label(label=STRING_SORT_ON)
     else:
-        lbl = Gtk.Label(label=_T("Then on:"))
+        lbl = Gtk.Label(label=STRING_THEN_ON)
     set_margins(lbl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, NARROW_MARGIN)
-    grid.attach(lbl, 1, row, 1, 1)
+    grid.attach(lbl, SORT_ON_COLUMN, row, 1, 1)
     if field > 0:
-        ctl = Gtk.SpinButton()
-        ctl.set_adjustment(Gtk.Adjustment(value=field, lower=1, upper=count, step_increment=1))
-        ctl.set_increments(1,1)
-        ctl.set_numeric(True)
-        ctl.set_value(field)
+        ctl = Gtk.ComboBoxText()
+        for idx in range(0, count):
+            ctl.append(str(idx+1), str(idx+1))
+        ctl.set_active(field-1)
         set_margins(ctl, SIDE_MARGIN, NARROW_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-        grid.attach(ctl, 1, row+1, 1, 1)
+        grid.attach(ctl, SORT_ON_COLUMN, row+1, 1, 1)
         controls += (ctl,)
     else:
-        lbl = Gtk.Label(label=_T("entire line"))
+        lbl = Gtk.Label(label=STRING_ENTIRE_LINE)
         set_margins(lbl, SIDE_MARGIN, NARROW_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-        grid.attach(lbl, 1, row+1, 1, 1)
+        grid.attach(lbl, SORT_ON_COLUMN, row+1, 1, 1)
+        controls += (None,)
 
     # datatype
-    lbl = Gtk.Label(label=_T("Sort as:"))
+    lbl = Gtk.Label(label=STRING_SORT_AS)
     set_margins(lbl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, NARROW_MARGIN)
-    grid.attach(lbl, 2, row, 1, 1)
+    grid.attach(lbl, SORT_AS_COLUMN, row, 1, 1)
     ctl = Gtk.ComboBoxText()
-    for idx, sort_as_text in enumerate(SORT_AS_LIST):
-        ctl.append(str(idx), sort_as_text)
-    ctl.set_active(0)
+    for item in Sort_as_list.items():
+        ctl.append(item[0],item[1])
+    ctl.set_active_id(ID_TEXT)
     set_margins(ctl, SIDE_MARGIN, NARROW_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-    grid.attach(ctl, 2, row+1, 1, 1)
-    controls += (ctl,)
-
-    # locale
-    lbl = Gtk.Label(label=_T("Locale:"))
-    set_margins(lbl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, NARROW_MARGIN)
-    grid.attach(lbl, 3, row, 1, 1)
-    ctl = Gtk.ComboBoxText()
-    for idx, sort_as_text in enumerate(LocaleList):
-        ctl.append(str(idx), sort_as_text)
-    ctl.set_active(0)
-    set_margins(ctl, SIDE_MARGIN, NARROW_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-    grid.attach(ctl, 3, row+1, 1, 1)
+    grid.attach(ctl, SORT_AS_COLUMN, row+1, 1, 1)
     controls += (ctl,)
 
     # order
-    lbl = Gtk.Label(label=_T("Order:"))
+    lbl = Gtk.Label(label=STRING_ORDER)
     set_margins(lbl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, NARROW_MARGIN)
-    grid.attach(lbl, 4, row, 1, 1)
+    grid.attach(lbl, SORT_ORDER_COLUMN, row, 1, 1)
     ctl = Gtk.ComboBoxText()
-    for idx, sort_as_text in enumerate(SORT_ORDER_LIST):
-        ctl.append(str(idx), sort_as_text)
-    ctl.set_active(0)
+    for item in Sort_order_list.items():
+        ctl.append(item[0],item[1])
+    ctl.set_active_id(ID_ASCENDING)
     set_margins(ctl, SIDE_MARGIN, NARROW_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
-    grid.attach(ctl, 4, row+1, 1, 1)
+    grid.attach(ctl, SORT_ORDER_COLUMN, row+1, 1, 1)
+    controls += (ctl,)
+
+    # language
+    lbl = Gtk.Label(label=STRING_LANGUAGE)
+    set_margins(lbl, SIDE_MARGIN, WIDE_MARGIN, SIDE_MARGIN, NARROW_MARGIN)
+    grid.attach(lbl, LANGUAGE_COLUMN, row, 1, 1)
+    ctl = Gtk.ComboBoxText()
+    for item in Language_list.items():
+        ctl.append(item[0],item[1])
+    ctl.set_active_id(AppLanguage)
+    set_margins(ctl, SIDE_MARGIN, NARROW_MARGIN, SIDE_MARGIN, WIDE_MARGIN)
+    grid.attach(ctl, LANGUAGE_COLUMN, row+1, 1, 1)
     controls += (ctl,)
 
     return controls
 
 
+# --------------------------------------
 class SortkeyDialog(Gtk.Dialog):
     '''
           Name: SortkeyDialog
          Usage: dialog = SortkeyDialog(parent)
        Purpose: A dialog that allows the user determine what fields
-                are sorted, tha manner of the sort, and whether
+                are sorted, the manner of the sort, and whether
                 sorted in ascending or descending order.
     Parameters: parent -- The parent window (`None` if no parent)
        Returns: dialog -- The dialog window
     '''
     def __init__(self, parent):
-        super().__init__(title=_T("Field Sort - Zim Desktop Wiki"), transient_for=parent, flags=0)
+        super().__init__(title=STRING_TITLE, transient_for=parent, flags=0)
         self.add_buttons(
             Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
             Gtk.STOCK_OK,     Gtk.ResponseType.OK
@@ -353,16 +425,16 @@ class SortkeyDialog(Gtk.Dialog):
         self.set_focus(ok_btn)
 
 
-    def show(self, count):
+    # ----------------------------------
+    def show_guts(self, count):
         '''
-              Name: show
-             Usage: dialog.show(count)
-           Purpose: add the controls to the dialog
+              Name: show_guts
+             Usage: dialog.show_guts(count)
+           Purpose: Add the controls to the dialog and show them.
+                    This cannot be done in __init__() since it needs the argument `count`.
         Parameters: count -- initial number of keys to display
            Returns: (none)
         '''
-
-        self.set_default_size(600, 600)
 
         # build the guts
         content_area = self.get_content_area()
@@ -374,13 +446,13 @@ class SortkeyDialog(Gtk.Dialog):
 
         self.grid = Gtk.Grid()
 
-        subtitle = Gtk.Label(label=_T("Sort by Fields"))
+        subtitle = Gtk.Label(label=STRING_SORT_BY_FIELDS)
         self.grid.attach(subtitle, 0, 0, NUMBER_OF_COLUMNS, 1)
 
         if count == 0:
-            fields_count = Gtk.Label(label=_T(f"No fields found"))
+            fields_count = Gtk.Label(label=STRING_NO_FIELDS_FOUND)
         else:
-            fields_count = Gtk.Label(label=_T(f"Number of fields: {count}"))
+            fields_count = Gtk.Label(label=STRING_NUMBER_OF_FIELDS+str(count))
         self.grid.attach(fields_count, 0, 1, NUMBER_OF_COLUMNS, 1)
 
         self.controls = ()
@@ -389,17 +461,24 @@ class SortkeyDialog(Gtk.Dialog):
             self.controls += (ctls,)
 
         # can also sort by entire lines
-        subtitle = Gtk.Label(label=_T("Sort by Lines"))
+        subtitle = Gtk.Label(label=STRING_SORT_BY_LINES)
         self.grid.attach(subtitle, 0, count*2+CONTROLS_START_ROW, NUMBER_OF_COLUMNS, 1)
-        ctls = sort_controls(self.grid, count*2+CONTROLS_START_ROW+1, 0, count)
+        ctls = sort_controls(self.grid, count*2+CONTROLS_START_ROW+1, ID_ENTIRE_LINE, count)
         self.controls += (ctls,)
 
-        # show the controls
+        # show the guts
         scrolled.add(self.grid)
         content_area.add(scrolled)
         self.show_all()
 
+        # set the correct height
+        content_rectangle = self.grid.get_allocation()
+        self.resize(content_rectangle.width+SCROLL_BAR_SIZE,
+                    content_rectangle.height+SCROLL_BAR_SIZE
+                    + ADDITIONAL_HEIGHT)
 
+
+    # ----------------------------------
     def get_sortkeys(self,count):
         '''
               Name: get_sortkeys
@@ -410,67 +489,151 @@ class SortkeyDialog(Gtk.Dialog):
         '''
         sortkeys = ()
 
-        if count > 0:
-            # first row has 4 controls
-            sortkeys = ((
-                self.controls[0][0].get_value(),
-                self.controls[0][1].get_active_text(),
-                self.controls[0][2].get_active_text(),
-                self.controls[0][3].get_active_text(),
-            ),)
-
-        # other rows have checkbutton for enable/disable
-        for idx in range(1,len(self.controls)-1):
-            if self.controls[idx][0].get_active():
+        # rows have checkbutton for enable/disable
+        for idx in range(0,len(self.controls)):
+            enabled = self.controls[idx][ENABLE_COLUMN]
+            if enabled is None:
+                enabled = 1
+            else:
+                enabled = self.controls[idx][ENABLE_COLUMN].get_active()
+            if enabled:
+                sort_on = self.controls[idx][SORT_ON_COLUMN]
+                if sort_on is None:
+                    sort_on = str(ID_ENTIRE_LINE)
+                else:
+                    sort_on = self.controls[idx][SORT_ON_COLUMN].get_active_id()
                 sortkeys += ((
-                    self.controls[idx][1].get_value(),
-                    self.controls[idx][2].get_active_text(),
-                    self.controls[idx][3].get_active_text(),
-                    self.controls[idx][4].get_active_text(),
+                    sort_on,
+                    self.controls[idx][SORT_AS_COLUMN].get_active_id(),
+                    self.controls[idx][SORT_ORDER_COLUMN].get_active_id(),
+                    self.controls[idx][LANGUAGE_COLUMN].get_active_id(),
                 ),)
-
-        # do entire line
-        if count == 0 or(isinstance(self.controls[-1][0], Gtk.CheckButton)
-            and self.controls[-1][0].get_active()):
-            sortkeys += ((
-                0,
-                self.controls[-1][1].get_active_text(),
-                self.controls[-1][2].get_active_text(),
-                self.controls[-1][3].get_active_text(),
-            ),)
 
         return sortkeys
 
 
-def query_sortkeys(count, fields):
+# --------------------------------------
+def query_sortkeys(count):
     '''
           Name: query_sortkeys
-         Usage: status, sortkeys = query_sortkeys(count, fields)
+         Usage: status, sortkeys = query_sortkeys(count)
        Purpose: Run a GTK Dialog to get the sortkeys.
     Parameters: count    -- number of fields
-                fields   -- a tuple of tuples with marked, text, and fields
        Returns: status   -- 0 == OK button, proceed with sort
                             1 == cancel sort
                 sortkeys -- tuple of sortkeys
     '''
-    status = 0  # zero is success
+    status = SUCCESS
     sortkeys = ()
 
+    msgbx  = None
     dialog = SortkeyDialog(None)
-    dialog.show(count)
+    dialog.show_guts(count)
 
-    response = dialog.run()
-    if response == Gtk.ResponseType.OK:
-        sortkeys = dialog.get_sortkeys(count)
-    else:
-        # dialog was cancelled
-        status = EXIT_STATUS_SORT_CANCELLED
+    while(True):
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            sortkeys = dialog.get_sortkeys(count)
+            if sortkeys:
+                break
 
-    dialog.destroy()
+            # popup asking to continue with sort or cancel
+            if not msgbx:
+                msgbx = Gtk.MessageDialog(
+                    transient_for=dialog,
+                    flags=0,
+                    message_type=Gtk.MessageType.QUESTION,
+                    buttons=Gtk.ButtonsType.YES_NO,
+                    text = STRING_MSG,
+                )
+                msgbx.format_secondary_text(STRING_MSG2)
+            msgbx.show()
+            response = msgbx.run()
+            if response == Gtk.ResponseType.YES:
+                status = EXIT_STATUS_SORT_CANCELLED
+                break
+            msgbx.hide()
+        else:
+            # dialog was cancelled
+            status = EXIT_STATUS_SORT_CANCELLED
+            break
+
+    dialog.hide()
 
     return status, sortkeys
 
 
+# --------------------------------------
+def cmp_simple_ascend(a, b):
+    '''
+          Name: cmp_simple_ascend
+         Usage: cmp = cmp_simple_ascend(a, b)
+       Purpose: Do a simple compare.
+    Parameters: a -- simple type eg str, int, float
+                b -- simple type eg str, int, float
+       Returns: cmp -- 1 if a>b, 0 if a==b, -1 if a<b
+    '''
+
+    try:
+        return (a>b)-(a<b)
+    except:
+        if type(a) is str:
+            return 1
+        elif type(b) is str:
+            return -1
+        else:
+            return 0
+
+
+# --------------------------------------
+def cmp_simple_descend(a, b):
+    '''
+          Name: cmp_simple_descend
+         Usage: cmp = cmp_simple_descend(a, b)
+       Purpose: Do a simple compare but descending.
+    Parameters: a -- simple type eg str, int, float
+                b -- simple type eg str, int, float
+       Returns: cmp -- 1 if a<b, 0 if a==b, -1 if a>b
+    '''
+    try:
+        return (a<b)-(a>b)
+    except:
+        if type(a) is str:
+            return -1
+        elif type(b) is str:
+            return 1
+        else:
+            return 0
+
+
+# --------------------------------------
+def cmp_collate_ascend(a,b):
+    '''
+          Name: cmp_collate_ascend
+         Usage: cmp = cmp_collate_ascend(a,b)
+       Purpose: Compare 2 strings using the locale ascending.
+    Parameters: a -- any string
+                b -- any string
+       Returns: cmp -- 1 if a>b, 0 if a==b, -1 if a<b
+    '''
+    cmp = locale.strcoll(a,b)
+    return cmp
+
+
+# --------------------------------------
+def cmp_collate_descend(a,b):
+    '''
+          Name: cmp_collate_descend
+         Usage: cmp = cmp_collate_descend(a,b)
+       Purpose: Compare 2 strings using the locale descending.
+    Parameters: a -- any string
+                b -- any string
+       Returns: cmp -- 1 if a<b, 0 if a==b, -1 if a>b
+    '''
+    return locale.strcoll(b,a)
+
+
+# --------------------------------------
 def assign_keys(fields, sortkeys):
     '''
           Name: assign_keys
@@ -480,70 +643,81 @@ def assign_keys(fields, sortkeys):
                 sortkeys -- ((field#,sort_as,type,order),...)
        Returns: keyed    -- ((marked,(field,sort_as,type,wants_descending)),...)
     '''
+
     keyed = ()
     for field in fields:
-        item = (field[0],)
+
+        keys_list = (field[0],)
         for sortkey in sortkeys:
-            if int(sortkey[0]+1.01) < len(field):
-                sort_on = field[int(sortkey[0]+1.01)]
+
+            # check for missing fields
+            sort_value = EMPTY_STRING
+            if int(sortkey[0]) < len(field)-1:
+                sort_value = field[int(sortkey[0])]
+
+            sort_as    = sortkey[1]
+            sort_order = sortkey[2]
+            sort_lang  = sortkey[3]
+
+            if sort_lang == ID_NONE:
+                if sort_as == ID_TEXT:
+                    if sort_order == ID_DESCENDING:
+                        key = (sort_value,cmp_simple_descend,)
+                    else:
+                        key = (sort_value,cmp_simple_ascend,)
+                elif sort_as == ID_NUMBER:
+                    try:
+                        sort_value = float(sort_value)
+                    except:
+                        # ignore all exceptions; use sort_value as is
+                        pass
+                    if sort_order == ID_DESCENDING:
+                        key = (sort_value,cmp_simple_descend,)
+                    else:
+                        key = (sort_value,cmp_simple_ascend,)
             else:
-                sort_on = None
-            element = [sort_on,
-                        sortkey[1],
-                        sortkey[2],
-                        sortkey[3] == STRING_DESCENDING,
-                    ]
-            # do some preconditioning
-            if element[2] == STRING_NONE:
-                if element[1] == STRING_NUMBERS:
-                    element[0] = number_or_zero(element[0])
+                if sort_as == ID_TEXT:
+                    if sort_order == ID_DESCENDING:
+                        key = (sort_value,cmp_collate_descend,)
+                    else:
+                        key = (sort_value,cmp_collate_ascend,)
+                elif sort_as == ID_NUMBER:
+                    try:
+                        sort_value = float(locale.delocalize(sort_value))
+                    except:
+                        # ignore all exceptions; use sort_value as is
+                        pass
+                    if sort_order == ID_DESCENDING:
+                        key = (sort_value,cmp_simple_descend,)
+                    else:
+                        key = (sort_value,cmp_simple_ascend,)
 
-            item += (element,)
-
-        keyed += (item,)
+            keys_list += (key,)
+        keyed += (keys_list,)
 
     return keyed
 
 
-def cmp_simple(a, b, wants_descending):
-    '''
-          Name: cmp_simple
-         Usage: cmp = cmp_simple(a, b)
-       Purpose: Do a simple compare.
-    Parameters: a -- simple type eg str, int, float
-                b -- simple type eg str, int, float
-       Returns: cmp -- 1 if a>b, 0 if a==b, -1 if a<b
-    '''
-    if a is None and b is None:
-        return 0
-    if a is None:
-        return -1
-    if b is None:
-        return 1
-    cmp = (a > b) - (a < b)
-    if wants_descending:
-        cmp = -cmp
-    return cmp
-
-
+# --------------------------------------
 def cmp_fields(a, b):
     '''
           Name: cmp_fields
          Usage: cmp = cmp_fields(a, b)
        Purpose: Complex compare of 2 fields
-    Parameters: a -- (marked_line,[value,type,locale,wants_descending],...)
-                b -- (marked_line,[value,type,locale,wants_descending],...)
+    Parameters: a -- (marked_line,[value,type,language,wants_descending],...)
+                b -- (marked_line,[value,type,language,wants_descending],...)
        Returns: cmp -- 1 if a>b, 0 if a==b, -1 if a<b
     '''
     for idx in range(1,len(a)):
-        if a[idx][2] == STRING_NONE:
-            if a[idx][1] == STRING_NUMBERS or a[idx][1] == STRING_TEXT:
-                cmp = cmp_simple(a[idx][0], b[idx][0], a[idx][3])
-                if cmp != 0:
-                    return cmp
+        cmp_func = a[idx][1]
+        cmp = cmp_func(a[idx][0],b[idx][0])
+        if cmp != 0:
+            return cmp
+
     return 0
 
 
+# --------------------------------------
 def sort_fields(keyed):
     '''
           Name: sort_fields
@@ -553,10 +727,14 @@ def sort_fields(keyed):
        Returns: ordered -- sorted marked lines
     '''
 
+    # Do not reverse the sort. Reverse is done individually by field.
+    # That is, some fields may be ascending and others descending.
+    # Reversing has to been deep in the sort per field.
     ordered = sorted(keyed, key=functools.cmp_to_key(cmp_fields))
     return ordered
 
 
+# --------------------------------------
 def extract_marked(ordered):
     '''
           Name: extract_marked
@@ -571,6 +749,7 @@ def extract_marked(ordered):
     return lines
 
 
+# --------------------------------------
 def main():
     '''
           Name: main
@@ -579,13 +758,17 @@ def main():
     Parameters: (none)
        Returns: (none)
     '''
-    text,     marked          = get_text()
+    load_languages()
+
+    text,     marked          = read_text()
     frontage, newline, ending = get_newline(marked)        # also preserves trailing blank lines
     count,    fields          = get_fields(text, marked)   # fields also contain unmarked & marked lines
-    status,   sortkeys        = query_sortkeys(count, fields)
-    if status != 0:   # user cancelled sort
+
+    status, sortkeys = query_sortkeys(count)
+    if status != SUCCESS:   # user cancelled sort
         print(marked, end=EMPTY_STRING)   # marked has its own newline at end
         exit(status)
+
     keyed   = assign_keys(fields, sortkeys)
     ordered = sort_fields(keyed)
     lines   = extract_marked(ordered)

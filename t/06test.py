@@ -30,15 +30,23 @@ import re
 cwd = os.path.dirname(os.path.realpath(__file__))
 field_sort = cwd + "/../field_sort.py"
 
-marked = """zero       __0__
+marked = """
+zero       __0__
+ten        __10__
+empty
 minus one  __-1__
-pi         __3.141159__
-big number __1e10__"""
+PI         __3.14159265358979__
+big number __1e10__
+e          __2.71828182845905__
+"""
+print('pre-sort')
+print(marked)
+print('sorted')
 
 lines = re.sub('__', '', marked)
-
 status = subprocess.call([field_sort, marked, lines])
-print("\n")
+
+print('')
 if status == 0:
     print("sort initiated")
 else:

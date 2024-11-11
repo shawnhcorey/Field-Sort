@@ -75,13 +75,16 @@ Ava, __Registered nurse__
 
 Asher, __Marketing specialist__
 
-
 """
 
-lines = re.sub('__', '', marked)
+print('pre-sort')
+print(marked)
+print('sorted')
 
+lines = re.sub('__', '', marked)
 status = subprocess.call([field_sort, marked, lines])
-print("\n")
+
+print('')
 if status == 0:
     print("sort initiated")
 else:

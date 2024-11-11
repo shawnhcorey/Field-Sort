@@ -34,11 +34,14 @@ marked = """__W__ __a__ __x__ __0__
 __Z__ __a__ __B__ __-1__
 __Y__ __a__ __B__ __3.141159__
 __Z__ __A__ __r__ __1e10__"""
+print('pre-sort')
+print(marked)
+print('sorted')
 
 lines = re.sub('__', '', marked)
-
 status = subprocess.call([field_sort, marked, lines])
-print("\n")
+
+print('')
 if status == 0:
     print("sort initiated")
 else:

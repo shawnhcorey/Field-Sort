@@ -15,10 +15,20 @@ Field Sort is a custom tool for the [Zim Desktop Wiki](https://zim-wiki.org/).
 *   python3 -- version 3.8 or later. <https://www.python.org/>
 *   GTK3    -- version 3 or later. <https://www.gtk.org/>
 
+    Zim uses Python3 and GTK3.
+    If you have installed Zim, you already have Python3 and GTK3 installed.
+
+*   PyICU   -- version 2.8.1 or later <https://pypi.org/project/PyICU/>
+
+    To install PyICU, open a terminal and type the following command.
+
+        pip install PyICU
+
 
 ## Installation
 
 Download `field-sort.py`.
+You only need this file.
 
 Open Zim and from the menu, select `Tools -> Custom Tools`.
 Press the `+` button at the top of the right column to add a new tool.

@@ -31,16 +31,23 @@ cwd = os.path.dirname(os.path.realpath(__file__))
 field_sort = cwd + "/../field_sort.py"
 
 marked = """
-__foo__
-__bar__
-__def__
+
+
+1
+0
+-1
+
 
 """
 
-lines = re.sub('__', '', marked)
+print('pre-sort')
+print(marked)
+print('sorted')
 
+lines = re.sub('__', '', marked)
 status = subprocess.call([field_sort, marked, lines])
-print("\n")
+
+print('')
 if status == 0:
     print("sort initiated")
 else:

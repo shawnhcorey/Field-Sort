@@ -30,10 +30,24 @@ import re
 cwd = os.path.dirname(os.path.realpath(__file__))
 field_sort = cwd + "/../field_sort.py"
 
-marked = """Mary had a little lamb,
-It's fleece as white as snow,
-And everywhere Mary went,
-The lamb was sure to go."""
+marked = """
+
+
+
+0
+-1
+3.141159
+123,456,789.00
+-987,654,321.00
+1,000
+-1e06
+1e10
+
+
+
+
+"""
+
 print('pre-sort')
 print(marked)
 print('sorted')

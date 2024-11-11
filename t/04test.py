@@ -31,7 +31,6 @@ cwd = os.path.dirname(os.path.realpath(__file__))
 field_sort = cwd + "/../field_sort.py"
 
 marked = """
-
 Kai, Cashier
 Olivia, Food preparation worker
 Liam, Janitor
@@ -54,10 +53,14 @@ Ava, Registered nurse
 Asher, Marketing specialist
 """
 
-lines = re.sub('__', '', marked)
+print('pre-sort')
+print(marked)
+print('sorted')
 
+lines = re.sub('__', '', marked)
 status = subprocess.call([field_sort, marked, lines])
-print("\n")
+
+print('')
 if status == 0:
     print("sort initiated")
 else:
